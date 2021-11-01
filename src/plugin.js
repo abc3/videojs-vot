@@ -30,6 +30,9 @@ class Vot extends Plugin {
     // the parent class will add player under this.player
     super(player);
 
+    this.socket = new WebSocket("ws://localhost:4000/socket/websocket");
+    this.prev_time = 0
+
     this.options = videojs.mergeOptions(defaults, options);
 
     player.ready(() => {
@@ -45,9 +48,11 @@ class Vot extends Plugin {
 
     player.on('loadeddata', (e) => {
       console.log('loadeddata')
+      this.event({ type: 'meta', event: 'join' })
     })
 
     player.on('play', () => {
+      this.play_start = Date.now()
       console.log('play')
       console.log('PlayerSize', `${player.currentWidth()}x${player.currentHeight()}`)
       console.log('VideoSize', `${player.videoWidth()}x${player.videoHeight()}`)
@@ -60,7 +65,19 @@ class Vot extends Plugin {
     })
 
     player.on('pause', () => {
-      console.log('pause')
+      this.event({ type: 'player', event: 'pause' })
+    })
+
+    player.on('timeupdate', (e) => {
+      console.log('timeupdate', player.currentTime())
+      const round = Math.round(player.currentTime())
+      if (this.prev_time == 0) {
+        this.event({ type: 'player', event: 'start_time', value: Date.now() - this.play_start })
+      }
+      if (this.prev_time == 0 || round != this.prev_time) {
+        this.event({ type: 'player', event: 'playing', pos: round })
+        this.prev_time = round
+      }
     })
 
     player.on('resize', () => {
@@ -72,6 +89,7 @@ class Vot extends Plugin {
     })
 
     player.on('waiting', () => {
+      this.event({ type: 'player', event: 'buffering' })
       console.log('waiting')
     })
 
@@ -85,6 +103,7 @@ class Vot extends Plugin {
 
     player.on('error', () => {
       console.log('error')
+      this.event({ type: 'player', event: 'error' })
     })
 
     // player.on('enterFullWindow', () => {
@@ -99,6 +118,10 @@ class Vot extends Plugin {
     //   console.log('enterFullWindow')
     // })
 
+  }
+
+  event = (event) => {
+    this.socket.send(JSON.stringify(event))
   }
 }
 
